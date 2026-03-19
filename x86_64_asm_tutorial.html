@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>x86_64 ASM — OS Dev Tutorial</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Space+Grotesk:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #0f0f1a;
+    --bg3: #141420;
+    --accent: #7fff7f;
+    --accent2: #4fc3f7;
+    --accent3: #ff79c6;
+    --dim: #444466;
+    --text: #ccd6f6;
+    --text-dim: #8892b0;
+    --border: #1e1e30;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* SIDEBAR */
+  .layout { display: flex; min-height: 100vh; }
+
+  nav {
+    width: 260px;
+    min-width: 260px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 32px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .nav-logo {
+    padding: 0 24px 32px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+
+  .nav-logo .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .nav-logo h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+    line-height: 1.3;
+  }
+
+  .nav-section-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--dim);
+    text-transform: uppercase;
+    padding: 0 24px 8px;
+    margin-top: 8px;
+  }
+
+  nav a {
+    display: block;
+    padding: 8px 24px;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 400;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+
+  nav a:hover, nav a.active {
+    color: var(--accent);
+    background: rgba(127,255,127,0.04);
+    border-left-color: var(--accent);
+  }
+
+  /* MAIN */
+  main {
+    flex: 1;
+    max-width: 860px;
+    padding: 60px 64px;
+    overflow-x: hidden;
+  }
+
+  /* SECTIONS */
+  .section {
+    margin-bottom: 80px;
+    scroll-margin-top: 40px;
+  }
+
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 42px;
+    font-weight: 700;
+    color: white;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--accent2);
+    margin: 32px 0 12px;
+  }
+
+  p {
+    color: var(--text-dim);
+    font-size: 15px;
+    margin-bottom: 16px;
+    max-width: 680px;
+  }
+
+  strong { color: var(--text); font-weight: 600; }
+
+  /* CODE BLOCKS */
+  .code-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin: 20px 0;
+    overflow: hidden;
+  }
+
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .code-lang {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  pre {
+    padding: 20px 20px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  /* Syntax highlight classes */
+  .kw { color: #ff79c6; }   /* keywords: mov, push, etc */
+  .reg { color: #7fff7f; }  /* registers: rax, rbx */
+  .num { color: #f1fa8c; }  /* numbers */
+  .cmt { color: #444466; font-style: italic; }  /* comments */
+  .lbl { color: #4fc3f7; }  /* labels */
+  .str { color: #ffb86c; }  /* strings */
+
+  /* REGISTER TABLE */
+  .reg-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 13px;
+  }
+
+  .reg-table th {
+    text-align: left;
+    padding: 10px 16px;
+    background: var(--bg3);
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .reg-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+
+  .reg-table td:first-child {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  .reg-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* CALLOUT */
+  .callout {
+    background: rgba(127,255,127,0.04);
+    border: 1px solid rgba(127,255,127,0.15);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 14px;
+    color: var(--text-dim);
+    max-width: 680px;
+  }
+
+  .callout.blue {
+    background: rgba(79,195,247,0.04);
+    border-color: rgba(79,195,247,0.15);
+    border-left-color: var(--accent2);
+  }
+
+  .callout.pink {
+    background: rgba(255,121,198,0.04);
+    border-color: rgba(255,121,198,0.15);
+    border-left-color: var(--accent3);
+  }
+
+  .callout strong { color: white; }
+
+  /* PILL BADGE */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+
+  .badge-green { background: rgba(127,255,127,0.1); color: var(--accent); border: 1px solid rgba(127,255,127,0.2); }
+  .badge-blue { background: rgba(79,195,247,0.1); color: var(--accent2); border: 1px solid rgba(79,195,247,0.2); }
+  .badge-pink { background: rgba(255,121,198,0.1); color: var(--accent3); border: 1px solid rgba(255,121,198,0.2); }
+
+  /* HERO */
+  .hero-sub {
+    font-size: 17px;
+    color: var(--text-dim);
+    max-width: 560px;
+    margin-bottom: 32px;
+  }
+
+  .progress-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 48px;
+  }
+
+  /* INSTRUCTION TABLE */
+  .inst-grid {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+
+  .inst-grid .cell {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .inst-grid .cell:nth-child(odd) {
+    background: var(--bg3);
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent3);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .inst-grid .cell:nth-child(even) {
+    color: var(--text-dim);
+    background: var(--bg2);
+  }
+
+  .inst-grid .cell:last-child,
+  .inst-grid .cell:nth-last-child(2) {
+    border-bottom: none;
+  }
+
+  /* FOOTER */
+  .next-section {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 24px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 48px;
+    text-decoration: none;
+    color: var(--text-dim);
+    font-size: 14px;
+    transition: all 0.15s;
+  }
+
+  .next-section:hover { border-color: var(--accent); color: var(--accent); }
+
+  .scrolltop {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+  }
+
+  .scrolltop:hover { border-color: var(--accent); background: rgba(127,255,127,0.08); }
+
+  @media (max-width: 900px) {
+    nav { display: none; }
+    main { padding: 32px 24px; }
+    h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav>
+  <div class="nav-logo">
+    <div class="tag">OS Dev Path</div>
+    <h2>x86_64<br>Assembly</h2>
+  </div>
+
+  <div class="nav-section-title">Foundations</div>
+  <a href="#intro">What is ASM?</a>
+  <a href="#why">Why you need it</a>
+  <a href="#registers">Registers</a>
+  <a href="#memory">Memory & Addressing</a>
+
+  <div class="nav-section-title">Core Instructions</div>
+  <a href="#mov">MOV — Moving Data</a>
+  <a href="#arith">Arithmetic</a>
+  <a href="#logic">Logic & Bits</a>
+  <a href="#jumps">Jumps & Comparisons</a>
+  <a href="#stack">The Stack</a>
+  <a href="#functions">Functions & Calling</a>
+
+  <div class="nav-section-title">OS Dev Specific</div>
+  <a href="#interrupts">Interrupts</a>
+  <a href="#bootloader">Bootloader ASM</a>
+  <a href="#gdt">GDT & Segments</a>
+  <a href="#handoff">Handing off to C</a>
+
+  <div class="nav-section-title">Tools</div>
+  <a href="#nasm">NASM Setup</a>
+  <a href="#resources">Resources</a>
+</nav>
+
+<!-- MAIN -->
+<main>
+
+  <!-- HERO -->
+  <div class="section" id="intro">
+    <div class="section-num">Chapter 00</div>
+    <h1>x86_64<br>Assembly</h1>
+    <p class="hero-sub">Everything you need to know to build an OS. No fluff, no filler. Just the real stuff.</p>
+    <div class="progress-row">
+      <span class="badge badge-green">C already known ✓</span>
+      <span class="badge badge-blue">x86_64 target</span>
+      <span class="badge badge-pink">OS Dev goal</span>
+    </div>
+
+    <h2>What is Assembly?</h2>
+    <p>C code gets compiled into machine code — raw numbers the CPU understands. Assembly (ASM) is one step above that. Instead of numbers, you write <strong>human-readable instructions</strong> that map almost 1:1 to what the CPU actually does.</p>
+    <p>In C you write <code style="color:var(--accent);font-family:JetBrains Mono,monospace">x = y + 5</code>. In ASM you write the exact CPU steps to do that. It feels like talking <em>directly</em> to the hardware.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">example</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="cmt">; This is what   x = y + 5   looks like in ASM</span>
+<span class="kw">mov</span>  <span class="reg">rax</span>, [<span class="reg">rbx</span>]       <span class="cmt">; load y into rax</span>
+<span class="kw">add</span>  <span class="reg">rax</span>, <span class="num">5</span>          <span class="cmt">; add 5 to rax</span>
+<span class="kw">mov</span>  [<span class="reg">rcx</span>], <span class="reg">rax</span>      <span class="cmt">; store result into x</span></pre>
+    </div>
+
+    <div class="callout">
+      <strong>Good news:</strong> Because you know C, ASM will feel familiar. You already understand variables, functions, loops, and memory. ASM is just doing all of that manually.
+    </div>
+  </div>
+
+  <!-- WHY -->
+  <div class="section" id="why">
+    <div class="section-num">Chapter 01</div>
+    <h2>Why an OS Needs ASM</h2>
+    <p>You only need ASM for a small part of your OS — but that part is <strong>impossible to do in C</strong>. Here's where ASM is required:</p>
+
+    <div class="inst-grid">
+      <div class="cell">Bootloader</div>
+      <div class="cell">The very first code that runs. No C runtime exists yet. You must write this in ASM.</div>
+      <div class="cell">CPU Setup</div>
+      <div class="cell">Switching from 16-bit real mode → 64-bit long mode. Only ASM can do this.</div>
+      <div class="cell">Interrupts</div>
+      <div class="cell">When hardware (keyboard, timer) fires an interrupt, ASM saves/restores CPU state.</div>
+      <div class="cell">Context Switch</div>
+      <div class="cell">Switching between running programs. You must save/restore all registers manually.</div>
+      <div class="cell">Special Registers</div>
+      <div class="cell">Registers like CR0, CR3, GDT — C cannot touch these. ASM can.</div>
+    </div>
+
+    <div class="callout blue">
+      <strong>The ratio:</strong> Your OS will be roughly <strong>5% ASM</strong> and <strong>95% C</strong>. Learn just enough ASM to do these jobs, then write everything else in C like you already know how to.
+    </div>
+  </div>
+
+  <!-- REGISTERS -->
+  <div class="section" id="registers">
+    <div class="section-num">Chapter 02</div>
+    <h2>Registers</h2>
+    <p>Registers are tiny storage slots <strong>inside the CPU itself</strong>. Way faster than RAM. Think of them as the CPU's hands — it can only work with data that's in a register.</p>
+    <p>In x86_64 the main registers are 64-bit wide. Here are all the ones you need:</p>
+
+    <h3>General Purpose Registers</h3>
+    <table class="reg-table">
+      <thead><tr><th>Register</th><th>Name</th><th>What it's used for</th></tr></thead>
+      <tbody>
+        <tr><td>rax</td><td>Accumulator</td><td>Math results, return values from functions</td></tr>
+        <tr><td>rbx</td><td>Base</td><td>General purpose, often holds a base address</td></tr>
+        <tr><td>rcx</td><td>Counter</td><td>Loop counters, shift amounts</td></tr>
+        <tr><td>rdx</td><td>Data</td><td>I/O, extra data for multiply/divide</td></tr>
+        <tr><td>rsi</td><td>Source Index</td><td>Source pointer in memory operations</td></tr>
+        <tr><td>rdi</td><td>Dest Index</td><td>Destination pointer, first function argument</td></tr>
+        <tr><td>rsp</td><td>Stack Pointer</td><td>Points to the top of the stack. Very important!</td></tr>
+        <tr><td>rbp</td><td>Base Pointer</td><td>Points to the base of the current stack frame</td></tr>
+        <tr><td>r8–r15</td><td>Extra</td><td>Extra general purpose registers (x86_64 added these)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Register Sizes — Same Register, Different Sizes</h3>
+    <p>This trips people up. One register has 4 names depending on how many bits you want to use:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">register sizes</span><span class="code-lang">concept</span></div>
+      <pre><span class="reg">rax</span>   <span class="cmt">= 64-bit  (the full thing)</span>
+<span class="reg">eax</span>   <span class="cmt">= 32-bit  (lower half of rax)</span>
+<span class="reg">ax</span>    <span class="cmt">= 16-bit  (lower 16 bits)</span>
+<span class="reg">al</span>    <span class="cmt">= 8-bit   (lowest byte)</span>
+<span class="reg">ah</span>    <span class="cmt">= 8-bit   (second byte)</span>
+
+<span class="cmt">; For OS dev in 64-bit mode, you'll mostly use rax, rbx etc.</span>
+<span class="cmt">; But knowing eax/ax exists is important for legacy code</span></pre>
+    </div>
+
+    <h3>Special Registers</h3>
+    <table class="reg-table">
+      <thead><tr><th>Register</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>rip</td><td>Instruction Pointer — points to the next instruction. You can't write to it directly</td></tr>
+        <tr><td>rflags</td><td>Flags register — stores results of comparisons (zero? negative? overflow?)</td></tr>
+        <tr><td>cr0</td><td>Control Register — bit 0 enables protected mode. You'll use this in your bootloader</td></tr>
+        <tr><td>cr3</td><td>Page table base address — used for virtual memory</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MEMORY -->
+  <div class="section" id="memory">
+    <div class="section-num">Chapter 03</div>
+    <h2>Memory & Addressing</h2>
+    <p>Square brackets <code style="color:var(--accent);font-family:JetBrains Mono,monospace">[ ]</code> mean "go to this memory address and read/write there". Without brackets you're working with the value directly. With brackets you're working with what's <em>at that address</em>.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">addressing modes</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="kw">mov</span> <span class="reg">rax</span>, <span class="num">42</span>          <span class="cmt">; rax = 42  (immediate value)</span>
+<span class="kw">mov</span> <span class="reg">rax</span>, <span class="reg">rbx</span>         <span class="cmt">; rax = rbx (register to register)</span>
+<span class="kw">mov</span> <span class="reg">rax</span>, [<span class="reg">rbx</span>]       <span class="cmt">; rax = memory at address stored in rbx</span>
+<span class="kw">mov</span> <span class="reg">rax</span>, [<span class="num">0x1000</span>]    <span class="cmt">; rax = memory at address 0x1000</span>
+<span class="kw">mov</span> <span class="reg">rax</span>, [<span class="reg">rbx</span>+<span class="num">8</span>]     <span class="cmt">; rax = memory at address rbx + 8</span>
+<span class="kw">mov</span> <span class="reg">rax</span>, [<span class="reg">rbx</span>+<span class="reg">rcx</span>*<span class="num">4</span>] <span class="cmt">; rax = memory at rbx + rcx*4 (array access!)</span></pre>
+    </div>
+
+    <h3>Data Sizes in Memory</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">size specifiers</span><span class="code-lang">NASM</span></div>
+      <pre><span class="kw">mov</span> <span class="str">byte</span>  [<span class="reg">rax</span>], <span class="num">5</span>    <span class="cmt">; write 1 byte  to memory</span>
+<span class="kw">mov</span> <span class="str">word</span>  [<span class="reg">rax</span>], <span class="num">5</span>    <span class="cmt">; write 2 bytes to memory</span>
+<span class="kw">mov</span> <span class="str">dword</span> [<span class="reg">rax</span>], <span class="num">5</span>    <span class="cmt">; write 4 bytes to memory</span>
+<span class="kw">mov</span> <span class="str">qword</span> [<span class="reg">rax</span>], <span class="num">5</span>    <span class="cmt">; write 8 bytes to memory</span></pre>
+    </div>
+  </div>
+
+  <!-- MOV -->
+  <div class="section" id="mov">
+    <div class="section-num">Chapter 04</div>
+    <h2>MOV — Moving Data</h2>
+    <p><code style="color:var(--accent3);font-family:JetBrains Mono,monospace">mov</code> is the most used instruction in ASM. It copies data from one place to another. It's the <code style="color:var(--accent);font-family:JetBrains Mono,monospace">=</code> of assembly.</p>
+
+    <div class="callout pink">
+      <strong>Rule:</strong> You cannot MOV directly from memory to memory. You must go through a register. Load → Modify → Store.
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">mov examples</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="cmt">; ✅ Valid MOVs</span>
+<span class="kw">mov</span> <span class="reg">rax</span>, <span class="num">100</span>          <span class="cmt">; rax = 100</span>
+<span class="kw">mov</span> <span class="reg">rbx</span>, <span class="reg">rax</span>          <span class="cmt">; rbx = rax</span>
+<span class="kw">mov</span> [<span class="reg">rax</span>], <span class="reg">rbx</span>        <span class="cmt">; memory[rax] = rbx</span>
+<span class="kw">mov</span> <span class="reg">rcx</span>, [<span class="reg">rbx</span>]        <span class="cmt">; rcx = memory[rbx]</span>
+
+<span class="cmt">; ❌ Invalid — can't go memory to memory directly</span>
+<span class="cmt">; mov [rax], [rbx]   ← this will NOT compile</span>
+
+<span class="cmt">; ✅ Do this instead:</span>
+<span class="kw">mov</span> <span class="reg">rdx</span>, [<span class="reg">rbx</span>]        <span class="cmt">; load from memory into register</span>
+<span class="kw">mov</span> [<span class="reg">rax</span>], <span class="reg">rdx</span>        <span class="cmt">; then store to other memory</span></pre>
+    </div>
+
+    <h3>LEA — Load Effective Address</h3>
+    <p>Like MOV but gives you the <em>address itself</em>, not the value at that address. Super useful for pointer arithmetic.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">lea example</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="kw">lea</span> <span class="reg">rax</span>, [<span class="reg">rbx</span>+<span class="num">16</span>]     <span class="cmt">; rax = rbx + 16  (the ADDRESS, not the value there)</span>
+<span class="cmt">; In C this is:  rax = &amp;array[4]  (if elements are 4 bytes)</span>
+
+<span class="cmt">; You can also use LEA for fast multiplication!</span>
+<span class="kw">lea</span> <span class="reg">rax</span>, [<span class="reg">rbx</span>*<span class="num">3</span>]       <span class="cmt">; rax = rbx * 3  (faster than using mul)</span></pre>
+    </div>
+  </div>
+
+  <!-- ARITHMETIC -->
+  <div class="section" id="arith">
+    <div class="section-num">Chapter 05</div>
+    <h2>Arithmetic</h2>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">arithmetic instructions</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="cmt">; ADD and SUB</span>
+<span class="kw">add</span> <span class="reg">rax</span>, <span class="num">10</span>        <span class="cmt">; rax = rax + 10</span>
+<span class="kw">add</span> <span class="reg">rax</span>, <span class="reg">rbx</span>       <span class="cmt">; rax = rax + rbx</span>
+<span class="kw">sub</span> <span class="reg">rax</span>, <span class="num">5</span>         <span class="cmt">; rax = rax - 5</span>
+<span class="kw">inc</span> <span class="reg">rax</span>            <span class="cmt">; rax++</span>
+<span class="kw">dec</span> <span class="reg">rax</span>            <span class="cmt">; rax--</span>
+
+<span class="cmt">; MULTIPLY (unsigned)</span>
+<span class="kw">mov</span> <span class="reg">rax</span>, <span class="num">6</span>
+<span class="kw">mov</span> <span class="reg">rbx</span>, <span class="num">7</span>
+<span class="kw">mul</span> <span class="reg">rbx</span>            <span class="cmt">; rdx:rax = rax * rbx  (result in rax, overflow in rdx)</span>
+
+<span class="cmt">; DIVIDE (unsigned)</span>
+<span class="kw">mov</span> <span class="reg">rax</span>, <span class="num">100</span>
+<span class="kw">mov</span> <span class="reg">rdx</span>, <span class="num">0</span>         <span class="cmt">; MUST zero rdx before div!</span>
+<span class="kw">mov</span> <span class="reg">rbx</span>, <span class="num">7</span>
+<span class="kw">div</span> <span class="reg">rbx</span>            <span class="cmt">; rax = quotient, rdx = remainder</span>
+
+<span class="cmt">; NEG — negate (make negative)</span>
+<span class="kw">neg</span> <span class="reg">rax</span>            <span class="cmt">; rax = -rax</span></pre>
+    </div>
+
+    <div class="callout pink">
+      <strong>Watch out with DIV:</strong> Before dividing, always zero out <code style="font-family:JetBrains Mono,monospace">rdx</code>. If you forget, you'll get a divide error and your OS will crash. Classic beginner bug.
+    </div>
+  </div>
+
+  <!-- LOGIC -->
+  <div class="section" id="logic">
+    <div class="section-num">Chapter 06</div>
+    <h2>Logic & Bit Operations</h2>
+    <p>In OS dev you manipulate flags and bits <em>constantly</em>. Turning a feature on means setting bit 3 of some register. Checking if a device is ready means testing bit 7. This is where bitwise ops shine.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">bitwise instructions</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="kw">and</span> <span class="reg">rax</span>, <span class="reg">rbx</span>        <span class="cmt">; rax = rax AND rbx  (mask bits)</span>
+<span class="kw">or</span>  <span class="reg">rax</span>, <span class="reg">rbx</span>        <span class="cmt">; rax = rax OR  rbx  (set bits)</span>
+<span class="kw">xor</span> <span class="reg">rax</span>, <span class="reg">rbx</span>        <span class="cmt">; rax = rax XOR rbx  (flip bits)</span>
+<span class="kw">not</span> <span class="reg">rax</span>             <span class="cmt">; rax = NOT rax       (invert all bits)</span>
+<span class="kw">shl</span> <span class="reg">rax</span>, <span class="num">1</span>          <span class="cmt">; rax = rax << 1      (shift left = multiply by 2)</span>
+<span class="kw">shr</span> <span class="reg">rax</span>, <span class="num">1</span>          <span class="cmt">; rax = rax >> 1      (shift right = divide by 2)</span>
+
+<span class="cmt">; ---- Real OS Dev examples ----</span>
+
+<span class="cmt">; Set bit 0 of cr0 (enables protected mode)</span>
+<span class="kw">or</span>  <span class="reg">eax</span>, <span class="num">1</span>
+
+<span class="cmt">; Clear bit 2 (mask it out)</span>
+<span class="kw">and</span> <span class="reg">rax</span>, <span class="num">0xFFFFFFFB</span>  <span class="cmt">; 0xFFFFFFFB = all 1s except bit 2</span>
+
+<span class="cmt">; XOR a register with itself = zero it out (fastest way!)</span>
+<span class="kw">xor</span> <span class="reg">rax</span>, <span class="reg">rax</span>         <span class="cmt">; rax = 0</span></pre>
+    </div>
+
+    <div class="callout">
+      <strong>Pro tip:</strong> <code style="font-family:JetBrains Mono,monospace">xor rax, rax</code> is the fastest way to zero a register. You'll see this everywhere in OS code.
+    </div>
+  </div>
+
+  <!-- JUMPS -->
+  <div class="section" id="jumps">
+    <div class="section-num">Chapter 07</div>
+    <h2>Jumps & Comparisons</h2>
+    <p>This is how you do <code style="color:var(--accent);font-family:JetBrains Mono,monospace">if</code> statements and loops in ASM. First you <strong>compare</strong> two values, then you <strong>jump</strong> based on the result.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">cmp and jumps</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="cmt">; CMP sets flags but doesn't change registers</span>
+<span class="cmt">; It's basically SUB without saving the result</span>
+
+<span class="kw">cmp</span> <span class="reg">rax</span>, <span class="num">10</span>           <span class="cmt">; compare rax with 10</span>
+<span class="kw">je</span>  <span class="lbl">.equal</span>            <span class="cmt">; jump if equal      (rax == 10)</span>
+<span class="kw">jne</span> <span class="lbl">.not_equal</span>        <span class="cmt">; jump if not equal  (rax != 10)</span>
+<span class="kw">jl</span>  <span class="lbl">.less</span>             <span class="cmt">; jump if less than  (rax < 10)</span>
+<span class="kw">jg</span>  <span class="lbl">.greater</span>          <span class="cmt">; jump if greater    (rax > 10)</span>
+<span class="kw">jle</span> <span class="lbl">.less_eq</span>          <span class="cmt">; jump if <=</span>
+<span class="kw">jge</span> <span class="lbl">.greater_eq</span>       <span class="cmt">; jump if >=</span>
+<span class="kw">jmp</span> <span class="lbl">.somewhere</span>        <span class="cmt">; unconditional jump (like goto)</span>
+
+<span class="cmt">; ---- This is an if/else in ASM ----</span>
+<span class="kw">cmp</span> <span class="reg">rax</span>, <span class="num">0</span>
+<span class="kw">je</span>  <span class="lbl">.is_zero</span>
+<span class="cmt">; code for rax != 0 goes here</span>
+<span class="kw">jmp</span> <span class="lbl">.done</span>
+<span class="lbl">.is_zero:</span>
+<span class="cmt">; code for rax == 0 goes here</span>
+<span class="lbl">.done:</span></pre>
+    </div>
+
+    <h3>A Loop in ASM</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">loop example</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="cmt">; for (rcx = 0; rcx < 10; rcx++)</span>
+<span class="kw">xor</span> <span class="reg">rcx</span>, <span class="reg">rcx</span>          <span class="cmt">; rcx = 0</span>
+<span class="lbl">.loop_start:</span>
+<span class="kw">cmp</span> <span class="reg">rcx</span>, <span class="num">10</span>
+<span class="kw">jge</span> <span class="lbl">.loop_end</span>          <span class="cmt">; exit if rcx >= 10</span>
+
+<span class="cmt">  ; your loop body goes here</span>
+
+<span class="kw">  inc</span> <span class="reg">rcx</span>               <span class="cmt">; rcx++</span>
+<span class="kw">  jmp</span> <span class="lbl">.loop_start</span>
+<span class="lbl">.loop_end:</span></pre>
+    </div>
+  </div>
+
+  <!-- STACK -->
+  <div class="section" id="stack">
+    <div class="section-num">Chapter 08</div>
+    <h2>The Stack</h2>
+    <p>The stack is a region of memory that works like a stack of plates. You push things on top, you pop them off. The CPU manages it automatically with <code style="color:var(--accent);font-family:JetBrains Mono,monospace">rsp</code> (stack pointer). <strong>The stack grows downward in memory.</strong></p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">push & pop</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="kw">push</span> <span class="reg">rax</span>    <span class="cmt">; rsp -= 8, then memory[rsp] = rax</span>
+<span class="kw">push</span> <span class="reg">rbx</span>    <span class="cmt">; rsp -= 8, then memory[rsp] = rbx</span>
+<span class="kw">push</span> <span class="reg">rcx</span>    <span class="cmt">; rsp -= 8, then memory[rsp] = rcx</span>
+
+<span class="kw">pop</span>  <span class="reg">rcx</span>    <span class="cmt">; rcx = memory[rsp], then rsp += 8</span>
+<span class="kw">pop</span>  <span class="reg">rbx</span>    <span class="cmt">; gets rbx back</span>
+<span class="kw">pop</span>  <span class="reg">rax</span>    <span class="cmt">; gets rax back  (LIFO order!)</span>
+
+<span class="cmt">; Push and pop must always be balanced!</span>
+<span class="cmt">; If you push 3 times you must pop 3 times</span></pre>
+    </div>
+
+    <div class="callout">
+      <strong>Stack alignment:</strong> In x86_64, before calling any function, <code style="font-family:JetBrains Mono,monospace">rsp</code> must be 16-byte aligned. If you call C code from ASM and it crashes mysteriously, check your alignment first.
+    </div>
+  </div>
+
+  <!-- FUNCTIONS -->
+  <div class="section" id="functions">
+    <div class="section-num">Chapter 09</div>
+    <h2>Functions & The Calling Convention</h2>
+    <p>When your ASM calls C code (or C calls ASM), both sides must agree on <em>which registers hold the arguments</em> and <em>where the return value goes</em>. This agreement is called the <strong>System V AMD64 calling convention</strong> — the standard on Linux/most OS dev.</p>
+
+    <h3>The Rules</h3>
+    <table class="reg-table">
+      <thead><tr><th>Register</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td>rdi</td><td>1st argument</td></tr>
+        <tr><td>rsi</td><td>2nd argument</td></tr>
+        <tr><td>rdx</td><td>3rd argument</td></tr>
+        <tr><td>rcx</td><td>4th argument</td></tr>
+        <tr><td>r8</td><td>5th argument</td></tr>
+        <tr><td>r9</td><td>6th argument</td></tr>
+        <tr><td>rax</td><td>Return value</td></tr>
+        <tr><td>rbx, rbp, r12–r15</td><td>Callee-saved (you must restore these if you use them)</td></tr>
+        <tr><td>rax, rcx, rdx, rsi, rdi, r8–r11</td><td>Caller-saved (can be destroyed by called function)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">calling C from ASM</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="cmt">; Calling this C function:  int add(int a, int b)</span>
+<span class="kw">mov</span>  <span class="reg">rdi</span>, <span class="num">10</span>        <span class="cmt">; first argument  = 10</span>
+<span class="kw">mov</span>  <span class="reg">rsi</span>, <span class="num">20</span>        <span class="cmt">; second argument = 20</span>
+<span class="kw">call</span> <span class="lbl">add</span>            <span class="cmt">; call the function</span>
+<span class="cmt">; result is now in rax  (rax = 30)</span>
+
+<span class="cmt">; Writing a simple function in ASM</span>
+<span class="lbl">my_function:</span>
+<span class="kw">    push</span> <span class="reg">rbp</span>            <span class="cmt">; save old base pointer</span>
+<span class="kw">    mov</span>  <span class="reg">rbp</span>, <span class="reg">rsp</span>       <span class="cmt">; set new base pointer</span>
+
+<span class="cmt">    ; your code here</span>
+<span class="cmt">    ; first arg is in rdi</span>
+<span class="cmt">    ; put return value in rax</span>
+
+<span class="kw">    pop</span>  <span class="reg">rbp</span>            <span class="cmt">; restore base pointer</span>
+<span class="kw">    ret</span>                  <span class="cmt">; return (pops rip from stack)</span></pre>
+    </div>
+  </div>
+
+  <!-- INTERRUPTS -->
+  <div class="section" id="interrupts">
+    <div class="section-num">Chapter 10</div>
+    <h2>Interrupts</h2>
+    <p>An interrupt is when hardware (or software) says <em>"stop what you're doing, handle this now!"</em>. Your keyboard press? Interrupt. Timer tick? Interrupt. Page fault? Interrupt. Your OS must handle all of these.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">interrupt handler stub</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="cmt">; When an interrupt fires, the CPU jumps here</span>
+<span class="cmt">; You MUST save ALL registers before doing anything</span>
+<span class="lbl">isr_handler:</span>
+<span class="kw">    push</span> <span class="reg">rax</span>          <span class="cmt">; save all registers</span>
+<span class="kw">    push</span> <span class="reg">rbx</span>
+<span class="kw">    push</span> <span class="reg">rcx</span>
+<span class="kw">    push</span> <span class="reg">rdx</span>
+<span class="kw">    push</span> <span class="reg">rsi</span>
+<span class="kw">    push</span> <span class="reg">rdi</span>
+<span class="kw">    push</span> <span class="reg">rbp</span>
+<span class="kw">    push</span> <span class="reg">r8</span>
+<span class="kw">    push</span> <span class="reg">r9</span>
+<span class="kw">    push</span> <span class="reg">r10</span>
+<span class="kw">    push</span> <span class="reg">r11</span>
+
+<span class="kw">    call</span> <span class="lbl">handle_interrupt</span>  <span class="cmt">; call your C function</span>
+
+<span class="kw">    pop</span>  <span class="reg">r11</span>          <span class="cmt">; restore all registers (reverse order!)</span>
+<span class="kw">    pop</span>  <span class="reg">r10</span>
+<span class="kw">    pop</span>  <span class="reg">r9</span>
+<span class="kw">    pop</span>  <span class="reg">r8</span>
+<span class="kw">    pop</span>  <span class="reg">rbp</span>
+<span class="kw">    pop</span>  <span class="reg">rdi</span>
+<span class="kw">    pop</span>  <span class="reg">rsi</span>
+<span class="kw">    pop</span>  <span class="reg">rdx</span>
+<span class="kw">    pop</span>  <span class="reg">rcx</span>
+<span class="kw">    pop</span>  <span class="reg">rbx</span>
+<span class="kw">    pop</span>  <span class="reg">rax</span>
+<span class="kw">    iretq</span>             <span class="cmt">; return from interrupt (special return!)</span></pre>
+    </div>
+  </div>
+
+  <!-- BOOTLOADER -->
+  <div class="section" id="bootloader">
+    <div class="section-num">Chapter 11</div>
+    <h2>Your Bootloader in ASM</h2>
+    <p>This is the first code your OS ever runs. The BIOS loads the first 512 bytes of your disk into memory at address <code style="color:var(--accent);font-family:JetBrains Mono,monospace">0x7C00</code> and jumps to it. That's your moment.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">minimal 16-bit bootloader</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="str">[bits 16]</span>               <span class="cmt">; BIOS starts us in 16-bit mode</span>
+<span class="str">[org 0x7C00]</span>            <span class="cmt">; we're loaded at this address</span>
+
+<span class="lbl">start:</span>
+    <span class="kw">cli</span>                 <span class="cmt">; disable interrupts while setting up</span>
+    <span class="kw">xor</span> <span class="reg">ax</span>, <span class="reg">ax</span>
+    <span class="kw">mov</span> <span class="reg">ds</span>, <span class="reg">ax</span>          <span class="cmt">; zero out segment registers</span>
+    <span class="kw">mov</span> <span class="reg">es</span>, <span class="reg">ax</span>
+    <span class="kw">mov</span> <span class="reg">ss</span>, <span class="reg">ax</span>
+    <span class="kw">mov</span> <span class="reg">sp</span>, <span class="num">0x7C00</span>      <span class="cmt">; set up stack below us</span>
+    <span class="kw">sti</span>                 <span class="cmt">; re-enable interrupts</span>
+
+    <span class="cmt">; Print a character using BIOS interrupt</span>
+    <span class="kw">mov</span>  <span class="reg">ah</span>, <span class="num">0x0E</span>       <span class="cmt">; BIOS teletype function</span>
+    <span class="kw">mov</span>  <span class="reg">al</span>, <span class="str">'!'</span>        <span class="cmt">; character to print</span>
+    <span class="kw">int</span>  <span class="num">0x10</span>           <span class="cmt">; call BIOS video interrupt</span>
+
+    <span class="kw">jmp</span>  <span class="lbl">$</span>              <span class="cmt">; loop forever (for now)</span>
+
+<span class="cmt">; Pad to 512 bytes and add boot signature</span>
+<span class="kw">times</span> <span class="num">510</span>-(<span class="lbl">$</span>-<span class="lbl">$$</span>) <span class="kw">db</span> <span class="num">0</span>
+<span class="kw">dw</span> <span class="num">0xAA55</span>               <span class="cmt">; magic number — BIOS checks for this</span></pre>
+    </div>
+
+    <div class="callout blue">
+      <strong>Those last 2 bytes <code style="font-family:JetBrains Mono,monospace">0xAA55</code></strong> are the boot signature. If they're not there, the BIOS refuses to boot your code. This is the most important 2 bytes you'll ever write.
+    </div>
+  </div>
+
+  <!-- GDT -->
+  <div class="section" id="gdt">
+    <div class="section-num">Chapter 12</div>
+    <h2>GDT & Switching to 64-bit</h2>
+    <p>The GDT (Global Descriptor Table) is a data structure you put in memory that tells the CPU about memory segments. To get to 64-bit long mode, you must: <strong>1)</strong> set up a GDT, <strong>2)</strong> load it with the <code style="color:var(--accent3);font-family:JetBrains Mono,monospace">lgdt</code> instruction, <strong>3)</strong> set bit 0 of CR0, <strong>4)</strong> far jump.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">loading the GDT</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="cmt">; Load the GDT descriptor</span>
+<span class="kw">lgdt</span> [<span class="lbl">gdt_descriptor</span>]
+
+<span class="cmt">; Set bit 0 of CR0 — this enables protected mode!</span>
+<span class="kw">mov</span> <span class="reg">eax</span>, <span class="reg">cr0</span>
+<span class="kw">or</span>  <span class="reg">eax</span>, <span class="num">1</span>
+<span class="kw">mov</span> <span class="reg">cr0</span>, <span class="reg">eax</span>
+
+<span class="cmt">; Far jump to flush the pipeline and enter 32-bit mode</span>
+<span class="kw">jmp</span> <span class="num">0x08</span>:<span class="lbl">protected_mode</span>  <span class="cmt">; 0x08 = code segment selector</span>
+
+<span class="str">[bits 32]</span>
+<span class="lbl">protected_mode:</span>
+    <span class="cmt">; Now in 32-bit protected mode</span>
+    <span class="cmt">; Next step: enable long mode (64-bit)</span>
+    <span class="cmt">; That involves CR4, EFER MSR, and page tables</span>
+    <span class="cmt">; — the OSDev wiki covers this step by step</span></pre>
+    </div>
+  </div>
+
+  <!-- HANDOFF TO C -->
+  <div class="section" id="handoff">
+    <div class="section-num">Chapter 13</div>
+    <h2>Handing Off to C</h2>
+    <p>Once your ASM has set up the CPU and memory, you call your C kernel. This is the moment your tiny 5% ASM hands the world to your 95% C code.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">jumping to your C kernel</span><span class="code-lang">x86_64 NASM</span></div>
+      <pre><span class="str">[bits 64]</span>
+<span class="lbl">long_mode_start:</span>
+    <span class="cmt">; Zero out all segment registers</span>
+    <span class="kw">mov</span> <span class="reg">ax</span>, <span class="num">0</span>
+    <span class="kw">mov</span> <span class="reg">ss</span>, <span class="reg">ax</span>
+    <span class="kw">mov</span> <span class="reg">ds</span>, <span class="reg">ax</span>
+    <span class="kw">mov</span> <span class="reg">es</span>, <span class="reg">ax</span>
+    <span class="kw">mov</span> <span class="reg">fs</span>, <span class="reg">ax</span>
+    <span class="kw">mov</span> <span class="reg">gs</span>, <span class="reg">ax</span>
+
+    <span class="cmt">; Call your C kernel entry point!</span>
+    <span class="kw">call</span> <span class="lbl">kernel_main</span>
+
+    <span class="cmt">; If kernel_main ever returns, halt the CPU</span>
+    <span class="kw">hlt</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">your C kernel starts here</span><span class="code-lang">C</span></div>
+      <pre><span class="cmt">// kernel.c</span>
+<span class="kw">void</span> <span class="lbl">kernel_main</span>() {
+    <span class="cmt">// You're in 64-bit mode. You own the machine.</span>
+    <span class="cmt">// Write to VGA text buffer to print to screen</span>
+    <span class="kw">char</span>* <span class="reg">vga</span> = (<span class="kw">char</span>*)<span class="num">0xB8000</span>;
+    vga[<span class="num">0</span>] = <span class="str">'H'</span>;
+    vga[<span class="num">1</span>] = <span class="num">0x0F</span>;  <span class="cmt">// white on black</span>
+    <span class="kw">while</span>(<span class="num">1</span>);       <span class="cmt">// halt</span>
+}</pre>
+    </div>
+
+    <div class="callout">
+      <strong>That VGA buffer at 0xB8000</strong> — write a character + a color byte there and it appears on screen. No drivers needed. That's your first "Hello World" from your OS.
+    </div>
+  </div>
+
+  <!-- NASM -->
+  <div class="section" id="nasm">
+    <div class="section-num">Chapter 14</div>
+    <h2>NASM Setup</h2>
+    <p>NASM (Netwide Assembler) is the assembler you'll use. It's free, it's everywhere, and it's what most OS dev tutorials use.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="code-label">install & compile</span><span class="code-lang">bash</span></div>
+      <pre><span class="cmt"># Install NASM</span>
+sudo apt install nasm          <span class="cmt"># Ubuntu/Debian</span>
+brew install nasm              <span class="cmt"># macOS</span>
+
+<span class="cmt"># Assemble your bootloader</span>
+nasm -f bin bootloader.asm -o bootloader.bin
+
+<span class="cmt"># Test it in QEMU (a free CPU emulator — no real hardware needed!)</span>
+sudo apt install qemu-system-x86
+qemu-system-x86_64 -drive format=raw,file=bootloader.bin
+
+<span class="cmt"># Assemble ASM that will link with C</span>
+nasm -f elf64 boot.asm -o boot.o
+gcc -c kernel.c -o kernel.o -ffreestanding -nostdlib
+ld -T linker.ld boot.o kernel.o -o kernel.elf</pre>
+    </div>
+
+    <div class="callout blue">
+      <strong>QEMU is your best friend.</strong> You can boot and test your OS in a virtual machine without touching real hardware. Mess up? Just restart QEMU. No risk, infinite experiments.
+    </div>
+  </div>
+
+  <!-- RESOURCES -->
+  <div class="section" id="resources">
+    <div class="section-num">Chapter 15</div>
+    <h2>Your Next Steps</h2>
+    <p>You now know enough ASM to start. Here's what to do next, in order:</p>
+
+    <div class="inst-grid">
+      <div class="cell">Step 1</div>
+      <div class="cell">Install NASM and QEMU. Write the bootloader above, boot it, see the '!' appear on screen.</div>
+      <div class="cell">Step 2</div>
+      <div class="cell">Read the OSDev Wiki — osdev.org. Start with "Bare Bones" tutorial. It's the bible.</div>
+      <div class="cell">Step 3</div>
+      <div class="cell">Get into 32-bit protected mode. Follow the GDT and A20 line guides on OSDev.</div>
+      <div class="cell">Step 4</div>
+      <div class="cell">Get into 64-bit long mode. Set up basic paging.</div>
+      <div class="cell">Step 5</div>
+      <div class="cell">Call kernel_main() in C. From here, write everything in C — memory allocator, drivers, scheduler.</div>
+      <div class="cell">Step 6</div>
+      <div class="cell">Read "Writing a Simple OS from Scratch" by Nick Blundell — free PDF. Best beginner OS book.</div>
+    </div>
+
+    <div class="callout">
+      <strong>Remember:</strong> Linus Torvalds was your age when he started Linux. He posted it saying <em style="color:var(--text)">"just a hobby, won't be big and professional"</em>. It now runs the world. Start small. Stay consistent.
+    </div>
+  </div>
+
+</main>
+</div>
+
+<button class="scrolltop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
+
+<script>
+  // Highlight active nav link on scroll
+  const sections = document.querySelectorAll('.section');
+  const links = document.querySelectorAll('nav a');
+
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.id;
+    });
+    links.forEach(l => {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>
